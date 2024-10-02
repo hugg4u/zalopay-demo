@@ -1,115 +1,99 @@
-import Image from "next/image";
-import localFont from "next/font/local";
-
-const geistSans = localFont({
-  src: "./fonts/GeistVF.woff",
-  variable: "--font-geist-sans",
-  weight: "100 900",
-});
-const geistMono = localFont({
-  src: "./fonts/GeistMonoVF.woff",
-  variable: "--font-geist-mono",
-  weight: "100 900",
-});
+import React, { useEffect, useState } from "react";
+import axios from "axios";
+import { QRCodeCanvas } from 'qrcode.react';
 
 export default function Home() {
-  return (
-    <div
-      className={`${geistSans.variable} ${geistMono.variable} grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]`}
-    >
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              pages/index.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [qrCode, setQrCode] = useState<string | undefined>(undefined);
+  const [appTransId, setAppTransId] = useState<string | undefined>(undefined);
+  const [secondsToGo, setSecondsToGo] = useState<number>(600);
+  const [amount, setAmount] = useState<string>("");
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+  // Hàm tạo đơn hàng
+  const createOrder = async () => {
+    try {
+      const res = await axios.post("/api/create_order", { amount });
+      setQrCode(res.data.url);
+      setAppTransId(res.data.appTransID);
+      setSecondsToGo(60); // Reset countdown
+    } catch (error) {
+      console.error("Error creating order:", error);
+    }
+  };
+
+  // Đếm ngược thời gian
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (secondsToGo > 0) {
+        setSecondsToGo((prev) => prev - 1);
+      }
+      if (secondsToGo === 0) {
+        clearInterval(timer);
+        setAppTransId(undefined);
+        setQrCode(undefined);
+        setAmount('');
+      }
+    }, 1000);
+
+    return () => {
+      clearInterval(timer);
+    };
+  }, [secondsToGo]);
+
+  // Kiểm tra trạng thái thanh toán
+  useEffect(() => {
+    if (!appTransId) return;
+
+    const checkPaymentStatus = setInterval(async () => {
+      try {
+        const res = await axios.post("/api/query_status", {
+          appTransId,
+        });
+        const returnCode = res.data.return_code;
+        if (returnCode === 1) {
+          clearInterval(checkPaymentStatus);
+          // Xử lí nếu thanh toán thành công
+        }
+      } catch (error) {
+        console.error("Error checking payment status:", error);
+      }
+    }, 1000);
+
+    return () => {
+      clearInterval(checkPaymentStatus);
+    };
+  }, [appTransId]);
+
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-slate-500">
+      <div className="bg-white rounded-lg shadow-lg p-6 max-w-md mx-auto">
+        <h1 className="text-2xl font-bold text-center mb-4 text-black">ZaloPay Payment</h1>
+        <div className="flex justify-center mb-4">
+          <input
+            type="number"
+            placeholder="Enter amount"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            className="border text-black border-gray-300 rounded-lg p-2 w-full"
+          />
+          <button
+            className="bg-blue-500 text-white rounded-lg px-4 py-2 ml-2 hover:bg-blue-600"
+            onClick={createOrder}
           >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+            Pay
+          </button>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+
+        {qrCode && secondsToGo > 0 && (
+          <div className="text-center flex flex-col items-center justify-center">
+            <h2 className="text-lg font-semibold mb-2 text-black">Waiting for payment...</h2>
+            <p className="text-gray-600 mb-4">
+              Time left to scan QR code: <span className="font-bold">{secondsToGo}</span> seconds
+            </p>
+            <h3 className="text-md font-medium mb-2 text-black">Scan the QR code below:</h3>
+            <QRCodeCanvas value={qrCode} size={200} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
